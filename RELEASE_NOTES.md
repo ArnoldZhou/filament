@@ -7,6 +7,7 @@ A new header is inserted each time a *tag* is created.
 
 - The Android support libraries (gltfio and filament-utils) now use dynamic linking.
 - Screen-space refraction is now supported.
+- Added Java / Kotlin bindings for geometry::SurfaceOrientation.
 
 ## v1.4.5
 

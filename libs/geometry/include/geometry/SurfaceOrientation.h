@@ -62,7 +62,9 @@ public:
          */
         Builder& vertexCount(size_t vertexCount) noexcept;
         Builder& normals(const filament::math::float3*, size_t stride = 0) noexcept;
-        /** @} */
+        /**
+         * @}
+         */
 
         Builder& tangents(const filament::math::float4*, size_t stride = 0) noexcept;
         Builder& uvs(const filament::math::float2*, size_t stride = 0) noexcept;
@@ -101,7 +103,9 @@ public:
     void getQuats(filament::math::quatf* out, size_t quatCount, size_t stride = 0) const noexcept;
     void getQuats(filament::math::short4* out, size_t quatCount, size_t stride = 0) const noexcept;
     void getQuats(filament::math::quath* out, size_t quatCount, size_t stride = 0) const noexcept;
-    /** @} */
+    /**
+     * @}
+     */
 
 private:
     SurfaceOrientation(OrientationImpl*) noexcept;
