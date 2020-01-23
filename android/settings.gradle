@@ -5,6 +5,7 @@ include ':gltfio-android'
 include ':filament-utils-android'
 
 // Samples
+include ':samples:sample-generated-mesh'
 include ':samples:sample-gltf-bloom'
 include ':samples:sample-gltf-viewer'
 include ':samples:sample-hello-camera'
