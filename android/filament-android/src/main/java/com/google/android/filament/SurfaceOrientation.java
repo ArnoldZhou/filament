@@ -34,9 +34,8 @@ public class SurfaceOrientation {
     /**
      * Constructs an immutable surface orientation helper.
      *
-     * <p>Clients provide pointers into their own data, which is synchronously consumed during
-     * <code>build()</code>. At a minimum, clients must supply a vertex count and normals buffer.
-     * They can supply data in any of the following three combinations:</p>
+     * At a minimum, clients must supply a vertex count and normals buffer.
+     * They can supply data in any of the following three combinations:
      *
      * <ol>
      * <li>vec3 normals only (not recommended)</li>
@@ -45,85 +44,114 @@ public class SurfaceOrientation {
      * </ol>
      */
     public static class Builder {
-        @SuppressWarnings({"FieldCanBeLocal", "UnusedDeclaration"}) // Keep to finalize native resources
-        private final BuilderFinalizer mFinalizer;
-        private final long mNativeBuilder;
+        private int mVertexCount;
+        private int mTriangleCount;
 
-        public Builder() {
-            mNativeBuilder = nCreateBuilder();
-            mFinalizer = new BuilderFinalizer(mNativeBuilder);
-        }
+        private Buffer mNormals;
+        private int mNormalsStride;
+
+        private Buffer mTangents;
+        private int mTangentsStride;
+
+        private Buffer mTexCoords;
+        private int mTexCoordsStride;
+
+        private Buffer mPositions;
+        private int mPositionsStride;
+
+        private Buffer mTrianglesUint16;
+        private Buffer mTrianglesUint32;
 
         @NonNull
         public Builder vertexCount(@IntRange(from = 1) int vertexCount) {
-            nBuilderVertexCount(mNativeBuilder, vertexCount);
+            mVertexCount = vertexCount;
             return this;
         }
 
         @NonNull
         public Builder normals(@NonNull Buffer buffer, int stride) {
-            nBuilderNormals(mNativeBuilder, buffer, buffer.remaining(), stride);
+            mNormals = buffer;
+            mNormalsStride = stride;
             return this;
         }
 
         @NonNull
         public Builder tangents(@NonNull Buffer buffer, int stride) {
-            nBuilderTangents(mNativeBuilder, buffer, buffer.remaining(), stride);
+            mTangents = buffer;
+            mTangentsStride = stride;
             return this;
         }
 
         @NonNull
         public Builder uvs(@NonNull Buffer buffer, int stride) {
-            nBuilderUVs(mNativeBuilder, buffer, buffer.remaining(), stride);
+            mTexCoords = buffer;
+            mTexCoordsStride = stride;
             return this;
         }
 
         @NonNull
         public Builder positions(@NonNull Buffer buffer, int stride) {
-            nBuilderPositions(mNativeBuilder, buffer, buffer.remaining(), stride);
+            mPositions = buffer;
+            mPositionsStride = stride;
             return this;
         }
 
         @NonNull
         public Builder triangleCount(int triangleCount) {
-            nBuilderTriangleCount(mNativeBuilder, triangleCount);
+            mTriangleCount = triangleCount;
             return this;
         }
 
         @NonNull
         public Builder triangles_uint16(@NonNull Buffer buffer) {
-            nBuilderTriangles16(mNativeBuilder, buffer, buffer.remaining());
+            mTrianglesUint16 = buffer;
             return this;
         }
 
         @NonNull
         public Builder triangles_uint32(@NonNull Buffer buffer) {
-            nBuilderTriangles32(mNativeBuilder, buffer, buffer.remaining());
+            mTrianglesUint32 = buffer;
             return this;
         }
 
         @NonNull
         public SurfaceOrientation build() {
-            long nativeSurfaceOrientation = nBuilderBuild(mNativeBuilder);
-            if (nativeSurfaceOrientation == 0) throw new IllegalStateException("Couldn't create SurfaceOrientation");
-            return new SurfaceOrientation(nativeSurfaceOrientation);
 
-        }
+            // The C++ Builder API specifies that the pointers are consumed during build(), not
+            // during the individual daisy-chain methods. Therefore we need to retain the Java
+            // buffers until this point in the code.
 
-        private static class BuilderFinalizer {
-            private final long mNativeObject;
+            long builder = nCreateBuilder();
+            nBuilderVertexCount(builder, mVertexCount);
+            nBuilderTriangleCount(builder, mTriangleCount);
 
-            BuilderFinalizer(long nativeObject) { mNativeObject = nativeObject; }
-
-            @Override
-            public void finalize() {
-                try {
-                    super.finalize();
-                } catch (Throwable t) { // Ignore
-                } finally {
-                    nDestroyBuilder(mNativeObject);
-                }
+            if (mNormals != null) {
+                nBuilderNormals(builder, mNormals, mNormals.remaining(), mNormalsStride);
             }
+
+            if (mTangents != null) {
+                nBuilderTangents(builder, mTangents, mTangents.remaining(), mTangentsStride);
+            }
+
+            if (mTexCoords != null) {
+                nBuilderUVs(builder, mTexCoords, mTexCoords.remaining(), mTexCoordsStride);
+            }
+
+            if (mPositions != null) {
+                nBuilderPositions(builder, mPositions, mPositions.remaining(), mPositionsStride);
+            }
+
+            if (mTrianglesUint16 != null) {
+                nBuilderTriangles16(builder, mTrianglesUint16, mTrianglesUint16.remaining());
+            }
+
+            if (mTrianglesUint32 != null) {
+                nBuilderTriangles32(builder, mTrianglesUint32, mTrianglesUint32.remaining());
+            }
+
+            long nativeSurfaceOrientation = nBuilderBuild(builder);
+            nDestroyBuilder(builder);
+            return new SurfaceOrientation(nativeSurfaceOrientation);
         }
     }
 
@@ -140,18 +168,18 @@ public class SurfaceOrientation {
     }
 
     @NonNull
-    public Buffer getQuatsAsFloat() {
-        return nGetQuatsAsFloat(mNativeObject);
+    public void getQuatsAsFloat(@NonNull Buffer buffer) {
+        nGetQuatsAsFloat(mNativeObject, buffer, buffer.remaining());
     }
 
     @NonNull
-    public Buffer getQuatsAsHalf() {
-        return nGetQuatsAsHalf(mNativeObject);
+    public void getQuatsAsHalf(@NonNull Buffer buffer) {
+        nGetQuatsAsHalf(mNativeObject, buffer, buffer.remaining());
     }
 
     @NonNull
-    public Buffer getQuatsAsShort() {
-        return nGetQuatsAsShort(mNativeObject);
+    public void getQuatsAsShort(@NonNull Buffer buffer) {
+        nGetQuatsAsShort(mNativeObject, buffer, buffer.remaining());
     }
 
     public void destroy() {
@@ -173,8 +201,8 @@ public class SurfaceOrientation {
     private static native long nBuilderBuild(long nativeBuilder);
 
     private static native int nGetVertexCount(long nativeSurfaceOrientation);
-    private static native Buffer nGetQuatsAsFloat(long nativeSurfaceOrientation);
-    private static native Buffer nGetQuatsAsHalf(long nativeSurfaceOrientation);
-    private static native Buffer nGetQuatsAsShort(long nativeSurfaceOrientation);
+    private static native void nGetQuatsAsFloat(long nativeSurfaceOrientation, Buffer buffer, int remaining);
+    private static native void nGetQuatsAsHalf(long nativeSurfaceOrientation, Buffer buffer, int remaining);
+    private static native void nGetQuatsAsShort(long nativeSurfaceOrientation, Buffer buffer, int remaining);
     private static native void nDestroy(long nativeSurfaceOrientation);
 }

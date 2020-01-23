@@ -76,7 +76,7 @@ Java_com_google_android_filament_gltfio_AssetLoader_nEnableDiagnostics(JNIEnv*, 
 extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_gltfio_AssetLoader_nDestroyAsset(JNIEnv*, jclass,
         jlong nativeLoader, jlong nativeAsset) {
-    AssetLoader* loader = (AssetLoader*) nativeLoader;    
+    AssetLoader* loader = (AssetLoader*) nativeLoader;
     FilamentAsset* asset = (FilamentAsset*) nativeAsset;
     loader->destroyAsset(asset);
 }
