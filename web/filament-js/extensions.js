@@ -275,15 +275,21 @@ Filament.loadClassExtensions = function() {
 
         const onComplete = function() {
             const finalize = function() {
-                resourceLoader.loadResources(asset);
+                resourceLoader.asyncBeginLoad(asset);
 
-                // The buffer data won't get sent to the GPU until the next call to
-                // "renderer.render()", so wait two frames before freeing the CPU-side data.
-                window.requestAnimationFrame(function() {
-                    window.requestAnimationFrame(function() {
+                // Decode a PNG or JPEG every 100 milliseconds. This is slow but it's useful to
+                // decode in the native layer instead of using Canvas2D. This allows us to have more
+                // control (handling of alpha, srgb, etc) and better parity with Filament on native
+                // platforms. In the future we may wish to offload this to web workers.
+                const timer = setInterval(() => {
+                    resourceLoader.asyncUpdateLoad();
+                    const progress = resourceLoader.asyncGetLoadProgress();
+                    if (progress >= 1) {
+                        clearInterval(timer);
                         resourceLoader.delete();
-                    });
-                });
+                    }
+                }, 100);
+
             };
             if (onDone) {
                 onDone(finalize);

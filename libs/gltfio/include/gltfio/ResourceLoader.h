@@ -83,9 +83,24 @@ public:
     ~ResourceLoader();
 
     /**
-     * Adds raw resource data into a cache for platforms that do not have filesystem access.
+     * Feeds the binary content of an external resource into the loader's URI cache.
+     *
+     * On some platforms, `ResourceLoader` does not know how to download external resources on its
+     * own (external resources might come from a filesystem, a database, or the internet) so this
+     * method allows clients to download external resources and push them to the loader.
+     *
+     * Every resource should be passed in before calling #loadResources or #asyncBeginLoad. See
+     * also FilamentAsset#getResourceUris.
+     *
+     * When loading GLB files (as opposed to JSON-based glTF files), clients typically do not
+     * need to call this method.
      */
     void addResourceData(const char* url, BufferDescriptor&& buffer);
+
+    /**
+     * Checks if the given resource has already been added to the URI cache.
+     */
+    bool hasResourceData(const char* url) const;
 
     /**
      * Loads resources for the given asset from the filesystem or data cache and "finalizes" the
@@ -96,13 +111,33 @@ public:
      * be loaded.
      *
      * Note: this method is synchronous and blocks until all textures have been decoded.
+     * For an asynchronous alternative, see #asyncBeginLoad.
      */
     bool loadResources(FilamentAsset* asset);
 
     /**
-     * Checks if the given resource has already been loaded.
+     * Starts an asynchronous resource load.
+     *
+     * Returns false if the loading process was unable to start.
+     *
+     * This is an alternative to #loadResources and requires periodic calls to #asyncUpdateLoad.
+     * On multi-threaded systems this creates threads for texture decoding.
      */
-    bool hasResourceData(const char* url) const;
+    bool asyncBeginLoad(FilamentAsset* asset);
+
+    /**
+     * Gets the status of an asynchronous resource load as a percentage in [0,1].
+     */
+    float asyncGetLoadProgress() const;
+
+    /**
+     * Updates an asynchronous load by performing any pending work that must take place
+     * on the main thread.
+     *
+     * Clients must periodically call this until #asyncGetLoadProgress returns 100%.
+     * After progress reaches 100%, calling this is harmless; it just does nothing.
+     */
+    void asyncUpdateLoad();
 
 private:
     bool loadResources(details::FFilamentAsset* asset, bool async);
