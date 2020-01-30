@@ -83,8 +83,9 @@ struct ResourceLoader::Impl {
     int mNumNewCacheEntries;
     std::atomic<int> mNumReadyEntries;
     utils::JobSystem::Job* mDecodingJob = nullptr;
+    details::FFilamentAsset* mLoadingAsset;
 
-    bool createTextures(details::FFilamentAsset* asset, bool async);
+    bool createTextures(bool async);
     void addTextureCacheEntry(const TextureBinding& tb);
     void bindTextureToMaterial(const TextureBinding& tb);
     void decodeSingleTexture();
@@ -338,8 +339,12 @@ bool ResourceLoader::loadResources(FFilamentAsset* asset, bool async) {
         computeTangents(asset);
     }
 
+    // Non-textured renderables are now considered ready, so notify the dep graph.
+    asset->mDependencyGraph.finalize();
+    pImpl->mLoadingAsset = asset;
+
     // Finally, load image files and create Filament Textures.
-    return pImpl->createTextures(asset, async);
+    return pImpl->createTextures(async);
 }
 
 bool ResourceLoader::asyncBeginLoad(FilamentAsset* asset) {
@@ -414,6 +419,7 @@ void ResourceLoader::Impl::uploadPendingTextures() {
                     Texture::Format::RGBA, Texture::Type::UBYTE, FREE_CALLBACK);
             texture->setImage(engine, 0, std::move(pbd));
             texture->generateMipmaps(engine);
+            mLoadingAsset->mDependencyGraph.markAsReady(texture);
             entry->completed = true;
             mNumReadyEntries++;
         }
@@ -471,12 +477,14 @@ void ResourceLoader::Impl::addTextureCacheEntry(const TextureBinding& tb) {
 }
 
 void ResourceLoader::Impl::bindTextureToMaterial(const TextureBinding& tb) {
+    details::FFilamentAsset* asset = mLoadingAsset;
+
     // First check if this is a buffer-based texture.
     if (tb.data) {
         const uint8_t* sourceData = tb.offset + (const uint8_t*) *tb.data;
         auto& entry = mBufferTextureCache[sourceData];
         if (entry.get() && entry->texture) {
-            tb.materialInstance->setParameter(tb.materialParameter, entry->texture, tb.sampler);
+            asset->bindTexture(tb, entry->texture);
         }
         return;
     }
@@ -484,11 +492,11 @@ void ResourceLoader::Impl::bindTextureToMaterial(const TextureBinding& tb) {
     // Next check if this is a URL-based texture.
     auto& entry = mUrlTextureCache[tb.uri];
     if (entry.get() && entry->texture) {
-        tb.materialInstance->setParameter(tb.materialParameter, entry->texture, tb.sampler);
+        asset->bindTexture(tb, entry->texture);
     }
 }
 
-bool ResourceLoader::Impl::createTextures(details::FFilamentAsset* asset, bool async) {
+bool ResourceLoader::Impl::createTextures(bool async) {
     // If any decoding jobs are still underway, wait for them to finish.
     utils::JobSystem* js = utils::JobSystem::getJobSystem();
     if (mDecodingJob) {
@@ -501,6 +509,7 @@ bool ResourceLoader::Impl::createTextures(details::FFilamentAsset* asset, bool a
     mUrlTextureCache.clear();
 
     // First, determine texture dimensions and create texture cache entries.
+    details::FFilamentAsset* asset = mLoadingAsset;
     for (size_t i = 0, n = asset->getTextureBindingCount(); i < n; ++i) {
         addTextureCacheEntry(asset->getTextureBindings()[i]);
     }
@@ -513,7 +522,7 @@ bool ResourceLoader::Impl::createTextures(details::FFilamentAsset* asset, bool a
             .levels(0xff)
             .format(entry->srgb ? Texture::InternalFormat::SRGB8_A8 : Texture::InternalFormat::RGBA8)
             .build(*mConfig.engine);
-        asset->mTextures.push_back(entry->texture);
+        asset->takeOwnership(entry->texture);
     };
     for (auto& pair : mBufferTextureCache) createTexture(pair.second.get());
     for (auto& pair : mUrlTextureCache) createTexture(pair.second.get());
@@ -588,6 +597,7 @@ bool ResourceLoader::Impl::createTextures(details::FFilamentAsset* asset, bool a
     js->runAndWait(parent);
 
     // Finally, upload texels to the GPU and generate mipmaps.
+    mLoadingAsset = asset;
     uploadPendingTextures();
 
     return true;
